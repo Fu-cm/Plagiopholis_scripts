@@ -1,0 +1,607 @@
+####################################################################
+# RevBayes Script: Bayesian inference of phylogeny with 22 partitions
+# Based on PartitionFinder results for 13 protein-coding genes and 2rRNAs
+# MCMC: Single chain - Using independent variables for each partition
+####################################################################
+
+
+# 1. LOADING THE DATA
+
+
+data = readDiscreteCharacterData("13p2s.nexus")
+
+num_taxa <- data.ntaxa()
+num_branches <- 2 * num_taxa - 3
+taxa <- data.taxa()
+
+data
+
+moves    = VectorMoves()
+monitors = VectorMonitors()
+
+print("Data loaded successfully!")
+print("Number of taxa: " + num_taxa)
+print("Number of branches: " + num_branches)
+
+
+# 2. DEFINING PARTITIONS
+
+print("Defining 22 partitions...")
+
+# Subset1: GTR+G
+pos1 <- seq(11266, 12198, 3)
+pos1 <- append(pos1, seq(1, 963, 3))
+pos1 <- append(pos1, seq(6526, 7860, 3))
+pos1 <- append(pos1, seq(5896, 6237, 3))
+
+# Subset2: GTR+I+G
+pos2 <- seq(2, 963, 3)
+pos2 <- append(pos2, seq(10157, 11265, 3))
+pos2 <- append(pos2, seq(6239, 6525, 3))
+pos2 <- append(pos2, seq(6527, 7860, 3))
+
+# Subset3: GTR+G
+pos3 <- seq(966, 1992, 3)
+pos3 <- append(pos3, seq(3, 963, 3))
+
+# Subset4: GTR+I
+pos4 <- seq(6238, 6525, 3)
+pos4 <- append(pos4, seq(7861, 9639, 3))
+pos4 <- append(pos4, seq(964, 1992, 3))
+
+# Subset5: GTR+G
+pos5 <- seq(965, 1992, 3)
+
+# Subset6: GTR+I
+pos6 <- seq(1993, 3591, 3)
+
+# Subset7: GTR+I
+pos7 <- seq(1994, 3591, 3)
+
+# Subset8: GTR+G
+pos8 <- seq(1995, 3591, 3)
+pos8 <- append(pos8, seq(5898, 6237, 3))
+
+# Subset9: GTR+I (equal frequencies)
+pos9 <- seq(5113, 5895, 3)
+pos9 <- append(pos9, seq(3592, 4272, 3))
+
+# Subset10: GTR+I
+pos10 <- seq(3593, 4272, 3)
+pos10 <- append(pos10, seq(5114, 5895, 3))
+
+# Subset11: GTR+G
+pos11 <- seq(6528, 7860, 3)
+pos11 <- append(pos11, seq(5115, 5895, 3))
+pos11 <- append(pos11, seq(3594, 4272, 3))
+
+# Subset12: K80+I
+pos12 <- seq(4274, 4434, 3)
+pos12 <- append(pos12, seq(4273, 4434, 3))
+
+# Subset13: K80+I+G
+pos13 <- seq(6240, 6525, 3)
+pos13 <- append(pos13, seq(4437, 5112, 3))
+pos13 <- append(pos13, seq(4275, 4434, 3))
+
+# Subset14: K80+G
+pos14 <- seq(4435, 5112, 3)
+
+# Subset15: GTR+I
+pos15 <- seq(4436, 5112, 3)
+pos15 <- append(pos15, seq(5897, 6237, 3))
+
+# Subset16: GTR+I+G
+pos16 <- seq(7862, 9639, 3)
+
+# Subset17: GTR+G
+pos17 <- seq(7863, 9639, 3)
+pos17 <- append(pos17, seq(10158, 11265, 3))
+
+# Subset18: GTR+G
+pos18 <- seq(9640, 10155, 3)
+
+# Subset19: K80+G
+pos19 <- seq(9641, 10155, 3)
+
+# Subset20: K80
+pos20 <- seq(9642, 10155, 3)
+
+# Subset21: GTR+I
+pos21 <- seq(10156, 11265, 3)
+pos21 <- append(pos21, seq(12199, 13700, 3))
+
+# Subset22: GTR+I+G
+pos22 <- seq(11267, 12198, 3)
+pos22 <- append(pos22, seq(11268, 12198, 3))
+pos22 <- append(pos22, seq(12200, 13700, 3))
+pos22 <- append(pos22, seq(12201, 13700, 3))
+
+print("=== Partition Sizes ===")
+print("Subset1: " + pos1.size() + " positions")
+print("Subset2: " + pos2.size() + " positions")
+print("Subset3: " + pos3.size() + " positions")
+print("Subset4: " + pos4.size() + " positions")
+print("Subset5: " + pos5.size() + " positions")
+print("Subset6: " + pos6.size() + " positions")
+print("Subset7: " + pos7.size() + " positions")
+print("Subset8: " + pos8.size() + " positions")
+print("Subset9: " + pos9.size() + " positions")
+print("Subset10: " + pos10.size() + " positions")
+print("Subset11: " + pos11.size() + " positions")
+print("Subset12: " + pos12.size() + " positions")
+print("Subset13: " + pos13.size() + " positions")
+print("Subset14: " + pos14.size() + " positions")
+print("Subset15: " + pos15.size() + " positions")
+print("Subset16: " + pos16.size() + " positions")
+print("Subset17: " + pos17.size() + " positions")
+print("Subset18: " + pos18.size() + " positions")
+print("Subset19: " + pos19.size() + " positions")
+print("Subset20: " + pos20.size() + " positions")
+print("Subset21: " + pos21.size() + " positions")
+print("Subset22: " + pos22.size() + " positions")
+
+
+# 3. TREE TOPOLOGY AND BRANCH LENGTHS
+
+print("Setting up tree model...")
+
+out_group = clade("Thermophis_zhaoermii")
+
+topology ~ dnUniformTopology(taxa, outgroup=out_group)
+moves.append( mvNNI(topology, weight=num_taxa) )
+moves.append( mvSPR(topology, weight=num_taxa/10.0) )
+
+for (i in 1:num_branches) {
+    bl[i] ~ dnExponential(10.0)
+    moves.append( mvScale(bl[i]) )
+}
+
+TL := sum(bl)
+psi := treeAssembly(topology, bl)
+
+print("Tree model defined.")
+
+
+# 4. SUBSTITUTION MODELS
+
+print("Setting up substitution models...")
+
+# Define priors
+pi_prior <- v(1,1,1,1)
+er_prior <- v(1,1,1,1,1,1)
+pi_equal <- rep(0.25, 4)
+
+# ==== Partition 1: GTR+G ====
+pi1 ~ dnDirichlet(pi_prior)
+moves.append( mvBetaSimplex(pi1, weight=2) )
+moves.append( mvDirichletSimplex(pi1, weight=1) )
+er1 ~ dnDirichlet(er_prior)
+moves.append( mvBetaSimplex(er1, weight=2) )
+moves.append( mvDirichletSimplex(er1, weight=1) )
+Q1 := fnGTR(er1, pi1)
+alpha1 ~ dnExponential(1.0)
+moves.append( mvScale(alpha1, weight=2) )
+rates1 := fnDiscretizeGamma(alpha1, alpha1, 4)
+
+# ==== Partition 2: GTR+I+G ====
+pi2 ~ dnDirichlet(pi_prior)
+moves.append( mvBetaSimplex(pi2, weight=2) )
+moves.append( mvDirichletSimplex(pi2, weight=1) )
+er2 ~ dnDirichlet(er_prior)
+moves.append( mvBetaSimplex(er2, weight=2) )
+moves.append( mvDirichletSimplex(er2, weight=1) )
+Q2 := fnGTR(er2, pi2)
+alpha2 ~ dnExponential(1.0)
+moves.append( mvScale(alpha2, weight=2) )
+p_inv2 ~ dnBeta(1,1)
+moves.append( mvScale(p_inv2, weight=2) )
+rates2 := fnDiscretizeGamma(alpha2, alpha2, 4)
+
+# ==== Partition 3: GTR+G ====
+pi3 ~ dnDirichlet(pi_prior)
+moves.append( mvBetaSimplex(pi3, weight=2) )
+moves.append( mvDirichletSimplex(pi3, weight=1) )
+er3 ~ dnDirichlet(er_prior)
+moves.append( mvBetaSimplex(er3, weight=2) )
+moves.append( mvDirichletSimplex(er3, weight=1) )
+Q3 := fnGTR(er3, pi3)
+alpha3 ~ dnExponential(1.0)
+moves.append( mvScale(alpha3, weight=2) )
+rates3 := fnDiscretizeGamma(alpha3, alpha3, 4)
+
+# ==== Partition 4: GTR+I ====
+pi4 ~ dnDirichlet(pi_prior)
+moves.append( mvBetaSimplex(pi4, weight=2) )
+moves.append( mvDirichletSimplex(pi4, weight=1) )
+er4 ~ dnDirichlet(er_prior)
+moves.append( mvBetaSimplex(er4, weight=2) )
+moves.append( mvDirichletSimplex(er4, weight=1) )
+Q4 := fnGTR(er4, pi4)
+p_inv4 ~ dnBeta(1,1)
+moves.append( mvScale(p_inv4, weight=2) )
+
+# ==== Partition 5: GTR+G ====
+pi5 ~ dnDirichlet(pi_prior)
+moves.append( mvBetaSimplex(pi5, weight=2) )
+moves.append( mvDirichletSimplex(pi5, weight=1) )
+er5 ~ dnDirichlet(er_prior)
+moves.append( mvBetaSimplex(er5, weight=2) )
+moves.append( mvDirichletSimplex(er5, weight=1) )
+Q5 := fnGTR(er5, pi5)
+alpha5 ~ dnExponential(1.0)
+moves.append( mvScale(alpha5, weight=2) )
+rates5 := fnDiscretizeGamma(alpha5, alpha5, 4)
+
+# ==== Partition 6: GTR+I ====
+pi6 ~ dnDirichlet(pi_prior)
+moves.append( mvBetaSimplex(pi6, weight=2) )
+moves.append( mvDirichletSimplex(pi6, weight=1) )
+er6 ~ dnDirichlet(er_prior)
+moves.append( mvBetaSimplex(er6, weight=2) )
+moves.append( mvDirichletSimplex(er6, weight=1) )
+Q6 := fnGTR(er6, pi6)
+p_inv6 ~ dnBeta(1,1)
+moves.append( mvScale(p_inv6, weight=2) )
+
+# ==== Partition 7: GTR+I ====
+pi7 ~ dnDirichlet(pi_prior)
+moves.append( mvBetaSimplex(pi7, weight=2) )
+moves.append( mvDirichletSimplex(pi7, weight=1) )
+er7 ~ dnDirichlet(er_prior)
+moves.append( mvBetaSimplex(er7, weight=2) )
+moves.append( mvDirichletSimplex(er7, weight=1) )
+Q7 := fnGTR(er7, pi7)
+p_inv7 ~ dnBeta(1,1)
+moves.append( mvScale(p_inv7, weight=2) )
+
+# ==== Partition 8: GTR+G ====
+pi8 ~ dnDirichlet(pi_prior)
+moves.append( mvBetaSimplex(pi8, weight=2) )
+moves.append( mvDirichletSimplex(pi8, weight=1) )
+er8 ~ dnDirichlet(er_prior)
+moves.append( mvBetaSimplex(er8, weight=2) )
+moves.append( mvDirichletSimplex(er8, weight=1) )
+Q8 := fnGTR(er8, pi8)
+alpha8 ~ dnExponential(1.0)
+moves.append( mvScale(alpha8, weight=2) )
+rates8 := fnDiscretizeGamma(alpha8, alpha8, 4)
+
+# ==== Partition 9: GTR+I (equal frequencies) ====
+pi9 <- pi_equal
+er9 ~ dnDirichlet(er_prior)
+moves.append( mvBetaSimplex(er9, weight=2) )
+moves.append( mvDirichletSimplex(er9, weight=1) )
+Q9 := fnGTR(er9, pi9)
+p_inv9 ~ dnBeta(1,1)
+moves.append( mvScale(p_inv9, weight=2) )
+
+# ==== Partition 10: GTR+I ====
+pi10 ~ dnDirichlet(pi_prior)
+moves.append( mvBetaSimplex(pi10, weight=2) )
+moves.append( mvDirichletSimplex(pi10, weight=1) )
+er10 ~ dnDirichlet(er_prior)
+moves.append( mvBetaSimplex(er10, weight=2) )
+moves.append( mvDirichletSimplex(er10, weight=1) )
+Q10 := fnGTR(er10, pi10)
+p_inv10 ~ dnBeta(1,1)
+moves.append( mvScale(p_inv10, weight=2) )
+
+# ==== Partition 11: GTR+G ====
+pi11 ~ dnDirichlet(pi_prior)
+moves.append( mvBetaSimplex(pi11, weight=2) )
+moves.append( mvDirichletSimplex(pi11, weight=1) )
+er11 ~ dnDirichlet(er_prior)
+moves.append( mvBetaSimplex(er11, weight=2) )
+moves.append( mvDirichletSimplex(er11, weight=1) )
+Q11 := fnGTR(er11, pi11)
+alpha11 ~ dnExponential(1.0)
+moves.append( mvScale(alpha11, weight=2) )
+rates11 := fnDiscretizeGamma(alpha11, alpha11, 4)
+
+# ==== Partition 12: K80+I ====
+pi12 <- pi_equal
+kappa12 ~ dnLognormal(0.0, 1.0)
+moves.append( mvScale(kappa12, weight=2) )
+Q12 := fnK80(kappa12)
+p_inv12 ~ dnBeta(1,1)
+moves.append( mvScale(p_inv12, weight=2) )
+
+# ==== Partition 13: K80+I+G ====
+pi13 <- pi_equal
+kappa13 ~ dnLognormal(0.0, 1.0)
+moves.append( mvScale(kappa13, weight=2) )
+Q13 := fnK80(kappa13)
+alpha13 ~ dnExponential(1.0)
+moves.append( mvScale(alpha13, weight=2) )
+p_inv13 ~ dnBeta(1,1)
+moves.append( mvScale(p_inv13, weight=2) )
+rates13 := fnDiscretizeGamma(alpha13, alpha13, 4)
+
+# ==== Partition 14: K80+G ====
+pi14 <- pi_equal
+kappa14 ~ dnLognormal(0.0, 1.0)
+moves.append( mvScale(kappa14, weight=2) )
+Q14 := fnK80(kappa14)
+alpha14 ~ dnExponential(1.0)
+moves.append( mvScale(alpha14, weight=2) )
+rates14 := fnDiscretizeGamma(alpha14, alpha14, 4)
+
+# ==== Partition 15: GTR+I ====
+pi15 ~ dnDirichlet(pi_prior)
+moves.append( mvBetaSimplex(pi15, weight=2) )
+moves.append( mvDirichletSimplex(pi15, weight=1) )
+er15 ~ dnDirichlet(er_prior)
+moves.append( mvBetaSimplex(er15, weight=2) )
+moves.append( mvDirichletSimplex(er15, weight=1) )
+Q15 := fnGTR(er15, pi15)
+p_inv15 ~ dnBeta(1,1)
+moves.append( mvScale(p_inv15, weight=2) )
+
+# ==== Partition 16: GTR+I+G ====
+pi16 ~ dnDirichlet(pi_prior)
+moves.append( mvBetaSimplex(pi16, weight=2) )
+moves.append( mvDirichletSimplex(pi16, weight=1) )
+er16 ~ dnDirichlet(er_prior)
+moves.append( mvBetaSimplex(er16, weight=2) )
+moves.append( mvDirichletSimplex(er16, weight=1) )
+Q16 := fnGTR(er16, pi16)
+alpha16 ~ dnExponential(1.0)
+moves.append( mvScale(alpha16, weight=2) )
+p_inv16 ~ dnBeta(1,1)
+moves.append( mvScale(p_inv16, weight=2) )
+rates16 := fnDiscretizeGamma(alpha16, alpha16, 4)
+
+# ==== Partition 17: GTR+G ====
+pi17 ~ dnDirichlet(pi_prior)
+moves.append( mvBetaSimplex(pi17, weight=2) )
+moves.append( mvDirichletSimplex(pi17, weight=1) )
+er17 ~ dnDirichlet(er_prior)
+moves.append( mvBetaSimplex(er17, weight=2) )
+moves.append( mvDirichletSimplex(er17, weight=1) )
+Q17 := fnGTR(er17, pi17)
+alpha17 ~ dnExponential(1.0)
+moves.append( mvScale(alpha17, weight=2) )
+rates17 := fnDiscretizeGamma(alpha17, alpha17, 4)
+
+# ==== Partition 18: GTR+G ====
+pi18 ~ dnDirichlet(pi_prior)
+moves.append( mvBetaSimplex(pi18, weight=2) )
+moves.append( mvDirichletSimplex(pi18, weight=1) )
+er18 ~ dnDirichlet(er_prior)
+moves.append( mvBetaSimplex(er18, weight=2) )
+moves.append( mvDirichletSimplex(er18, weight=1) )
+Q18 := fnGTR(er18, pi18)
+alpha18 ~ dnExponential(1.0)
+moves.append( mvScale(alpha18, weight=2) )
+rates18 := fnDiscretizeGamma(alpha18, alpha18, 4)
+
+# ==== Partition 19: K80+G ====
+pi19 <- pi_equal
+kappa19 ~ dnLognormal(0.0, 1.0)
+moves.append( mvScale(kappa19, weight=2) )
+Q19 := fnK80(kappa19)
+alpha19 ~ dnExponential(1.0)
+moves.append( mvScale(alpha19, weight=2) )
+rates19 := fnDiscretizeGamma(alpha19, alpha19, 4)
+
+# ==== Partition 20: K80 ====
+pi20 <- pi_equal
+kappa20 ~ dnLognormal(0.0, 1.0)
+moves.append( mvScale(kappa20, weight=2) )
+Q20 := fnK80(kappa20)
+
+# ==== Partition 21: GTR+I ====
+pi21 ~ dnDirichlet(pi_prior)
+moves.append( mvBetaSimplex(pi21, weight=2) )
+moves.append( mvDirichletSimplex(pi21, weight=1) )
+er21 ~ dnDirichlet(er_prior)
+moves.append( mvBetaSimplex(er21, weight=2) )
+moves.append( mvDirichletSimplex(er21, weight=1) )
+Q21 := fnGTR(er21, pi21)
+p_inv21 ~ dnBeta(1,1)
+moves.append( mvScale(p_inv21, weight=2) )
+
+# ==== Partition 22: GTR+I+G ====
+pi22 ~ dnDirichlet(pi_prior)
+moves.append( mvBetaSimplex(pi22, weight=2) )
+moves.append( mvDirichletSimplex(pi22, weight=1) )
+er22 ~ dnDirichlet(er_prior)
+moves.append( mvBetaSimplex(er22, weight=2) )
+moves.append( mvDirichletSimplex(er22, weight=1) )
+Q22 := fnGTR(er22, pi22)
+alpha22 ~ dnExponential(1.0)
+moves.append( mvScale(alpha22, weight=2) )
+p_inv22 ~ dnBeta(1,1)
+moves.append( mvScale(p_inv22, weight=2) )
+rates22 := fnDiscretizeGamma(alpha22, alpha22, 4)
+
+print("Substitution models defined.")
+
+
+# 5. PHYLOGENETIC MODELS
+
+print("Setting up PhyloCTMC models...")
+
+function getPartitionData(positions) {
+    current_chars <- data.getIncludedCharacterIndices()
+    data.excludeAll()
+    data.includeCharacter(positions)
+    partition_data <- data
+    data.excludeAll()
+    data.includeCharacter(current_chars)
+    return partition_data
+}
+
+print("Creating partition 1...")
+data_1 <- getPartitionData(pos1)
+seq1 ~ dnPhyloCTMC(tree=psi, Q=Q1, siteRates=rates1, type="DNA")
+seq1.clamp(data_1)
+
+print("Creating partition 2...")
+data_2 <- getPartitionData(pos2)
+seq2 ~ dnPhyloCTMC(tree=psi, Q=Q2, siteRates=rates2, pInv=p_inv2, type="DNA")
+seq2.clamp(data_2)
+
+print("Creating partition 3...")
+data_3 <- getPartitionData(pos3)
+seq3 ~ dnPhyloCTMC(tree=psi, Q=Q3, siteRates=rates3, type="DNA")
+seq3.clamp(data_3)
+
+print("Creating partition 4...")
+data_4 <- getPartitionData(pos4)
+seq4 ~ dnPhyloCTMC(tree=psi, Q=Q4, pInv=p_inv4, type="DNA")
+seq4.clamp(data_4)
+
+print("Creating partition 5...")
+data_5 <- getPartitionData(pos5)
+seq5 ~ dnPhyloCTMC(tree=psi, Q=Q5, siteRates=rates5, type="DNA")
+seq5.clamp(data_5)
+
+print("Creating partition 6...")
+data_6 <- getPartitionData(pos6)
+seq6 ~ dnPhyloCTMC(tree=psi, Q=Q6, pInv=p_inv6, type="DNA")
+seq6.clamp(data_6)
+
+print("Creating partition 7...")
+data_7 <- getPartitionData(pos7)
+seq7 ~ dnPhyloCTMC(tree=psi, Q=Q7, pInv=p_inv7, type="DNA")
+seq7.clamp(data_7)
+
+print("Creating partition 8...")
+data_8 <- getPartitionData(pos8)
+seq8 ~ dnPhyloCTMC(tree=psi, Q=Q8, siteRates=rates8, type="DNA")
+seq8.clamp(data_8)
+
+print("Creating partition 9...")
+data_9 <- getPartitionData(pos9)
+seq9 ~ dnPhyloCTMC(tree=psi, Q=Q9, pInv=p_inv9, type="DNA")
+seq9.clamp(data_9)
+
+print("Creating partition 10...")
+data_10 <- getPartitionData(pos10)
+seq10 ~ dnPhyloCTMC(tree=psi, Q=Q10, pInv=p_inv10, type="DNA")
+seq10.clamp(data_10)
+
+print("Creating partition 11...")
+data_11 <- getPartitionData(pos11)
+seq11 ~ dnPhyloCTMC(tree=psi, Q=Q11, siteRates=rates11, type="DNA")
+seq11.clamp(data_11)
+
+print("Creating partition 12...")
+data_12 <- getPartitionData(pos12)
+seq12 ~ dnPhyloCTMC(tree=psi, Q=Q12, pInv=p_inv12, type="DNA")
+seq12.clamp(data_12)
+
+print("Creating partition 13...")
+data_13 <- getPartitionData(pos13)
+seq13 ~ dnPhyloCTMC(tree=psi, Q=Q13, siteRates=rates13, pInv=p_inv13, type="DNA")
+seq13.clamp(data_13)
+
+print("Creating partition 14...")
+data_14 <- getPartitionData(pos14)
+seq14 ~ dnPhyloCTMC(tree=psi, Q=Q14, siteRates=rates14, type="DNA")
+seq14.clamp(data_14)
+
+print("Creating partition 15...")
+data_15 <- getPartitionData(pos15)
+seq15 ~ dnPhyloCTMC(tree=psi, Q=Q15, pInv=p_inv15, type="DNA")
+seq15.clamp(data_15)
+
+print("Creating partition 16...")
+data_16 <- getPartitionData(pos16)
+seq16 ~ dnPhyloCTMC(tree=psi, Q=Q16, siteRates=rates16, pInv=p_inv16, type="DNA")
+seq16.clamp(data_16)
+
+print("Creating partition 17...")
+data_17 <- getPartitionData(pos17)
+seq17 ~ dnPhyloCTMC(tree=psi, Q=Q17, siteRates=rates17, type="DNA")
+seq17.clamp(data_17)
+
+print("Creating partition 18...")
+data_18 <- getPartitionData(pos18)
+seq18 ~ dnPhyloCTMC(tree=psi, Q=Q18, siteRates=rates18, type="DNA")
+seq18.clamp(data_18)
+
+print("Creating partition 19...")
+data_19 <- getPartitionData(pos19)
+seq19 ~ dnPhyloCTMC(tree=psi, Q=Q19, siteRates=rates19, type="DNA")
+seq19.clamp(data_19)
+
+print("Creating partition 20...")
+data_20 <- getPartitionData(pos20)
+seq20 ~ dnPhyloCTMC(tree=psi, Q=Q20, type="DNA")
+seq20.clamp(data_20)
+
+print("Creating partition 21...")
+data_21 <- getPartitionData(pos21)
+seq21 ~ dnPhyloCTMC(tree=psi, Q=Q21, pInv=p_inv21, type="DNA")
+seq21.clamp(data_21)
+
+print("Creating partition 22...")
+data_22 <- getPartitionData(pos22)
+seq22 ~ dnPhyloCTMC(tree=psi, Q=Q22, siteRates=rates22, pInv=p_inv22, type="DNA")
+seq22.clamp(data_22)
+
+print("PhyloCTMC models defined.")
+
+
+# 6. CREATE THE MODEL
+
+print("Creating model object...")
+
+# Use psi as the root node (proven to work in diagnostic test)
+mymodel = model(psi)
+
+print("Model object created.")
+
+
+# 7. SET UP MONITORS
+
+print("Setting up monitors...")
+
+monitors.append( mnModel(filename="output/13p2s_partitioned.log", printgen=1000) )
+monitors.append( mnFile(filename="output/13p2s_partitioned.trees", printgen=1000, psi) )
+monitors.append( mnScreen(printgen=2000, TL) )
+
+
+# 8. RUN SINGLE CHAIN MCMC
+
+print("Starting MCMC analysis...")
+print("Generations: 10,000,000")
+print("Sample frequency: 1000 generations")
+print("Total samples: 10,000")
+
+mymcmc = mcmc(mymodel, monitors, moves)
+mymcmc.run(generations=10000000)
+
+print("MCMC run completed!")
+
+
+# 9. POST-PROCESSING: MAP TREE
+
+print("")
+print("Starting post-processing...")
+
+treetrace = readTreeTrace("output/13p2s_partitioned.trees", treetype="non-clock", burnin=0.25)
+
+map_tree = mapTree(treetrace, "output/13p2s_partitioned_MAP.tre", conditionalAges=TRUE)
+
+print("MAP tree saved to: output/13p2s_partitioned_MAP.tre")
+
+ess_values <- treetrace.ESS()
+print("ESS values:")
+print(ess_values)
+
+if (ess_values < 200) {
+    print("WARNING: ESS values below 200. Consider increasing generations.")
+} else {
+    print("All ESS values above 200. MCMC appears to have converged.")
+}
+
+print("")
+print("========================================")
+print("Analysis completed successfully!")
+print("========================================")
+
+q()
